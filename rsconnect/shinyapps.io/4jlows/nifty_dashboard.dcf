@@ -1,0 +1,13 @@
+name: nifty_dashboard
+title:
+username:
+account: 4jlows
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 7742757
+bundleId: 6560136
+url: https://4jlows.shinyapps.io/nifty_dashboard/
+when: 1669586504.52014
+lastSyncTime: 1669586504.52014
+asMultiple: FALSE
+asStatic: FALSE

@@ -1,0 +1,222 @@
+---
+title: "EDA Nifty500"
+output: html_document
+---
+
+
+```{r}
+library(rsconnect)
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+library(shiny)
+library(shinydashboard)
+library(DT)
+```
+
+Load Data
+```{r}
+nifty500<- read.csv("nifty_500_stats.csv", sep = ";")
+```
+
+Categorize industry and nifty categories + some binding to add "All category"
+```{r}
+nifty500<-nifty500 %>% mutate(change_from_top = (current_value - high_52week)/high_52week*100)
+nifty500_all_cat <- nifty500 %>% mutate(category = "All")
+nifty500_all_in <- nifty500 %>% mutate(industry = "All")
+nifty500_all_cat_in <- nifty500_all_cat %>% mutate(industry = "All")
+nifty500_final <- rbind(nifty500, nifty500_all_cat, nifty500_all_in, nifty500_all_cat_in)
+
+nifty500_final$industry <- as.factor(nifty500_final$industry)
+nifty500_final$category <- as.factor(nifty500_final$category)
+
+basicgrowthmodel <- lm(sales_growth_3yr ~ industry + category, data = nifty500)
+```
+
+
+Will place results in dashboard, so will require a total of 2UIs for category and industry, and 10 tables + a second tab for a linear regression for sales
+```{r}
+ui <- dashboardPage(
+  dashboardHeader(title= "Nifty 5's"),
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem("Stats",
+               tabName = "stats_tab",
+               icon = icon("dashboard")),
+      menuItem("Stats Data Table Form",
+               tabName = "dt_stats_tab",
+               icon = icon("dashboard")),
+      menuItem("Industry Model",
+               tabName = "model_tab",
+               icon = icon("dashboard"))
+    )
+  ),
+  dashboardBody(
+    tabItems(
+      tabItem(tabName = "stats_tab",
+              fluidRow(box(uiOutput("industry_selector")),box(uiOutput("category_selector"))),
+              fluidRow(box(title = "top 5 return on equity",tableOutput("top_5_roe")),
+                       box(title = "bottom 5 return on equity",tableOutput("bottom_5_roe"))), 
+              fluidRow(box(title = "top 5 in managing capital",tableOutput("top_5_roce")),
+                       box(title = "bottom 5 in managing capital",tableOutput("bottom_5_roce"))), 
+              fluidRow(box(title = "top 5 growth",tableOutput("top_5_growth")),
+                       box(title = "bottom 5 growth",tableOutput("bottom_5_growth"))), 
+              fluidRow(box(title = "dividend kings",tableOutput("top_5_div")),
+                       box(title = "dividend losers",tableOutput("bottom_5_div"))), 
+              fluidRow(box(title = "best covid survivor",tableOutput("top_5_change")),
+                       box(title = "worst covid survivor",tableOutput("bottom_5_change")))
+              ),
+        tabItem(tabName = "dt_stats_tab",
+                fluidRow(box(uiOutput("industry_selector_2")),box(uiOutput("category_selector_2"))),
+                box(width = 12, title = "nifty 500 stats", dataTableOutput("nifty_stats_table"))
+              ),
+        tabItem(tabName = "model_tab",
+                tabPanel("Summary", verbatimTextOutput("model_summary")),
+                box(title = "Healthcare seems to be the only industry that had a significant affect on sales growth during the years leading up to covid. Figures.")
+        )
+    )
+))
+
+server <- function(input,output){
+  output$industry_selector <- renderUI({
+    industry_selector_df <- nifty500_final%>%
+      select(industry)%>%
+      distinct()%>%
+      arrange(industry)
+    
+    selectInput(inputId = "industry_selector_1",
+                   label = "industry selector",
+                   choices = industry_selector_df)  
+  })
+  output$category_selector <- renderUI({
+    category_selector_df <- nifty500_final%>%
+      select(category)%>%
+      distinct()%>%
+      arrange(category)
+    
+       selectInput(inputId = "category_selector_1",
+                    label = "category selector",
+                    choices = category_selector_df) 
+  })
+   output$top_5_roe <- renderTable({
+     nifty500_final%>%
+       filter(industry == input$industry_selector_1)%>%
+       filter(category == input$category_selector_1)%>%
+       select(company,symbol,market_cap,current_value,price_earnings,roe)%>%
+       arrange(desc(roe))%>%
+       slice(1:5)
+   })
+   output$bottom_5_roe <- renderTable({
+     nifty500_final%>%
+       filter(industry == input$industry_selector_1)%>%
+       filter(category == input$category_selector_1)%>%
+       select(company,symbol,market_cap,current_value,price_earnings,roe)%>%
+        arrange(roe)%>%
+        slice(1:5)
+   })
+    output$top_5_roce <- renderTable({
+     nifty500_final%>%
+       filter(industry == input$industry_selector_1)%>%
+       filter(category == input$category_selector_1)%>%
+       select(company,symbol,market_cap,current_value,price_earnings,roce)%>%
+       arrange(desc(roce))%>%
+       slice(1:5)
+   })
+   output$bottom_5_roce <- renderTable({
+     nifty500_final%>%
+       filter(industry == input$industry_selector_1)%>%
+       filter(category == input$category_selector_1)%>%
+       select(company,symbol,market_cap,current_value,price_earnings,roce)%>%
+        arrange(roce)%>%
+        slice(1:5)
+   })
+    output$top_5_growth <- renderTable({
+     nifty500_final%>%
+       filter(industry == input$industry_selector_1)%>%
+       filter(category == input$category_selector_1)%>%
+       select(company,symbol,market_cap,current_value,price_earnings,sales_growth_3yr)%>%
+       arrange(desc(sales_growth_3yr))%>%
+       slice(1:5)
+   })
+   output$bottom_5_growth <- renderTable({
+     nifty500_final%>%
+       filter(industry == input$industry_selector_1)%>%
+       filter(category == input$category_selector_1)%>%
+       select(company,symbol,market_cap,current_value,price_earnings,sales_growth_3yr)%>%
+        arrange(sales_growth_3yr)%>%
+        slice(1:5)
+   })
+  output$top_5_div <- renderTable({
+     nifty500_final%>%
+       filter(industry == input$industry_selector_1)%>%
+       filter(category == input$category_selector_1)%>%
+       select(company,symbol,market_cap,current_value,price_earnings,dividend_yield)%>%
+       arrange(desc(dividend_yield))%>%
+       slice(1:5)
+   })
+   output$bottom_5_div <- renderTable({
+     nifty500_final%>%
+       filter(industry == input$industry_selector_1)%>%
+       filter(category == input$category_selector_1)%>%
+       select(company,symbol,market_cap,current_value,price_earnings,dividend_yield)%>%
+        arrange(dividend_yield)%>%
+        slice(1:5)
+   })
+  output$top_5_change <- renderTable({
+     nifty500_final%>%
+       filter(industry == input$industry_selector_1)%>%
+       filter(category == input$category_selector_1)%>%
+       select(company,symbol,market_cap,current_value,price_earnings,change_from_top)%>%
+       arrange(desc(change_from_top))%>%
+       slice(1:5)
+   })
+   output$bottom_5_change <- renderTable({
+     nifty500_final%>%
+       filter(industry == input$industry_selector_1)%>%
+       filter(category == input$category_selector_1)%>%
+       select(company,symbol,market_cap,current_value,price_earnings,change_from_top)%>%
+        arrange(change_from_top)%>%
+        slice(1:5)
+   })   
+   output$model_summary <- renderPrint({
+     summary(basicgrowthmodel)
+     
+   })
+   output$industry_selector_2 <- renderUI({
+    industry_selector_df_2 <- nifty500_final%>%
+      select(industry)%>%
+      distinct()%>%
+      arrange(industry)
+    
+    selectInput(inputId = "industry_selector_2",
+                   label = "industry selector",
+                   choices = industry_selector_df_2)  
+  })
+   output$category_selector_2 <- renderUI({
+    category_selector_df_2 <- nifty500_final%>%
+      select(category)%>%
+      distinct()%>%
+      arrange(category)
+    
+       selectInput(inputId = "category_selector_2",
+                    label = "category selector",
+                    choices = category_selector_df_2) 
+   })
+   output$nifty_stats_table <- renderDataTable({
+     nifty500_final%>%
+        filter(industry == input$industry_selector_2)%>%
+        filter(category == input$category_selector_2)%>%
+        select(company,symbol,market_cap,current_value,roe,roce,dividend_yield,sales_growth_3yr,change_from_top)
+   })
+}
+
+```
+
+```{r}
+shinyApp(ui = ui, server = server) 
+```
+
+
+
+
+

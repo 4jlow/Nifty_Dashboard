@@ -1,4 +1,4 @@
-#Nifty Dashboard
+# Nifty Dashboard
 
 KPI Assessment on Nifty500 Data. Deployed dashboard at https://4jlows.shinyapps.io/nifty_dashboard/
 
